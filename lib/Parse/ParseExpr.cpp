@@ -2900,7 +2900,8 @@ ParserStatus Parser::parseExprList(tok leftTok, tok rightTok,
                                     ? diag::expected_rparen_expr_list
                                     : diag::expected_rsquare_expr_list,
                                   Kind,
-                                  [&] () -> ParserStatus {
+                                  [&] (SmallVectorImpl<ASTNode> *Elements,
+                                       bool IsActive) -> ParserStatus {
     Identifier FieldName;
     SourceLoc FieldNameLoc;
     if (Kind != SyntaxKind::YieldStmt)
@@ -3221,6 +3222,9 @@ ParserResult<Expr> Parser::parseExprCollection() {
                                 *this, LSquareLoc,
                                 StructureMarkerKind::OpenSquare);
 
+  if (Tok.is(tok::pound_sourceLocation))
+    parseLineDirective();
+
   // [] is always an array.
   if (Tok.is(tok::r_square)) {
     if (SyntaxContext->isEnabled())
@@ -3254,6 +3258,8 @@ ParserResult<Expr> Parser::parseExprCollection() {
   {
     BacktrackingScope Scope(*this);
     auto HasDelayedDecl = State->hasDelayedDecl();
+    while (Tok.is(tok::pound_if))
+      consumeToken();
     // Parse the first expression.
     ParserResult<Expr> FirstExpr
       = parseExpr(diag::expected_expr_in_collection_literal);
@@ -3291,6 +3297,7 @@ ParserResult<Expr> Parser::parseExprCollection() {
 ParserResult<Expr> Parser::parseExprArray(SourceLoc LSquareLoc) {
   SmallVector<Expr *, 8> SubExprs;
   SmallVector<SourceLoc, 8> CommaLocs;
+  Parser::ConfigMap IfConfigMap;
 
   SourceLoc RSquareLoc;
   ParserStatus Status;
@@ -3300,12 +3307,17 @@ ParserResult<Expr> Parser::parseExprArray(SourceLoc LSquareLoc) {
                       /*AllowSepAfterLast=*/true,
                       diag::expected_rsquare_array_expr,
                       SyntaxKind::ArrayElementList,
-                      [&] () -> ParserStatus
+                      [&] (SmallVectorImpl<ASTNode> *Elements,
+                           bool IsActive) -> ParserStatus
   {
     ParserResult<Expr> Element
       = parseExpr(diag::expected_expr_in_collection_literal);
-    if (Element.isNonNull())
-      SubExprs.push_back(Element.get());
+    if (auto elt = Element.getPtrOrNull()) {
+      if (IsActive)
+        SubExprs.push_back(IfConfigMap.registerActiveDataElement(elt));
+      if (Elements)
+        Elements->push_back(elt);
+    }
 
     if (First) {
       if (Tok.isNot(tok::r_square) && Tok.isNot(tok::comma)) {
@@ -3316,17 +3328,16 @@ ParserResult<Expr> Parser::parseExprArray(SourceLoc LSquareLoc) {
       First = false;
     }
 
-    if (Tok.is(tok::comma))
+    if (Tok.is(tok::comma) && IsActive)
       CommaLocs.push_back(Tok.getLoc());
     return Element;
-  });
+  }, &IfConfigMap);
   if (HasError)
     Status.setIsParseError();
 
-  assert(SubExprs.size() >= 1);
-  return makeParserResult(Status,
+  return makeParserResult(Status, IfConfigMap.closeCollection(
           ArrayExpr::create(Context, LSquareLoc, SubExprs, CommaLocs,
-                            RSquareLoc));
+                            RSquareLoc)));
 }
 
 /// parseExprDictionary - Parse a dictionary literal expression.
@@ -3342,13 +3353,8 @@ ParserResult<Expr> Parser::parseExprDictionary(SourceLoc LSquareLoc) {
   // FIXME: We're not tracking the colon locations in the AST.
   SmallVector<Expr *, 8> SubExprs;
   SmallVector<SourceLoc, 8> CommaLocs;
+  Parser::ConfigMap IfConfigMap;
   SourceLoc RSquareLoc;
-
-  // Function that adds a new key/value pair.
-  auto addKeyValuePair = [&](Expr *Key, Expr *Value) -> void {
-    Expr *Exprs[] = {Key, Value};
-    SubExprs.push_back(TupleExpr::createImplicit(Context, Exprs, { }));
-  };
 
   ParserStatus Status;
   Status |=
@@ -3356,7 +3362,8 @@ ParserResult<Expr> Parser::parseExprDictionary(SourceLoc LSquareLoc) {
                 /*AllowSepAfterLast=*/true,
                 diag::expected_rsquare_array_expr,
                 SyntaxKind::DictionaryElementList,
-                [&]() -> ParserStatus {
+                [&](SmallVectorImpl<ASTNode> *Elements,
+                    bool IsActive) -> ParserStatus {
     // Parse the next key.
     ParserResult<Expr> Key;
 
@@ -3379,18 +3386,22 @@ ParserResult<Expr> Parser::parseExprDictionary(SourceLoc LSquareLoc) {
       Value = makeParserResult(Value, new (Context) ErrorExpr(PreviousLoc));
 
     // Add this key/value pair.
-    addKeyValuePair(Key.get(), Value.get());
+    Expr *Exprs[] = {Key.get(), Value.get()};
+    auto keyValue = TupleExpr::createImplicit(Context, Exprs, { });
+    if (IsActive)
+      SubExprs.push_back(IfConfigMap.registerActiveDataElement(keyValue));
+    if (Elements)
+      Elements->push_back(keyValue);
 
-    if (Tok.is(tok::comma))
+    if (Tok.is(tok::comma) && IsActive)
       CommaLocs.push_back(Tok.getLoc());
 
     return ParserStatus(Key) | ParserStatus(Value);
-  });
+  }, &IfConfigMap);
 
-  assert(SubExprs.size() >= 1);
-  return makeParserResult(Status, DictionaryExpr::create(Context, LSquareLoc,
-                                                         SubExprs, CommaLocs,
-                                                         RSquareLoc));
+  return makeParserResult(Status, IfConfigMap.closeCollection(
+          DictionaryExpr::create(Context, LSquareLoc, SubExprs, CommaLocs,
+                                 RSquareLoc)));
 }
 
 void Parser::addPatternVariablesToScope(ArrayRef<Pattern *> Patterns) {

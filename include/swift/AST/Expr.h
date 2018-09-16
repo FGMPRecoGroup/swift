@@ -29,6 +29,7 @@
 #include "swift/Basic/InlineBitfield.h"
 #include "llvm/Support/TrailingObjects.h"
 #include <utility>
+#include <map>
 
 namespace llvm {
   struct fltSemantics;
@@ -57,6 +58,7 @@ namespace swift {
   class PatternBindingDecl;
   class ParameterList;
   class EnumElementDecl;
+  class IfConfigDecl;
 
 enum class ExprKind : uint8_t {
 #define EXPR(Id, Parent) Id,
@@ -2098,6 +2100,8 @@ protected:
   }
 
 public:
+  /// Populated by Parser::ConfigMap to represent conditionals in collections.
+  std::map<const void *,std::vector <IfConfigDecl *>> ConditionalsMap;
 
   /// Retrieve the elements stored in the collection.
   ArrayRef<Expr *> getElements() const {

@@ -1503,7 +1503,8 @@ bool SILParser::parseSILBBArgsAtBranch(SmallVector<SILValue, 6> &Args,
                     /*AllowSepAfterLast=*/false,
                     diag::sil_basicblock_arg_rparen,
                     SyntaxKind::Unknown,
-                    [&]() -> ParserStatus {
+                    [&](SmallVectorImpl<ASTNode> *Elements,
+                        bool IsActive) -> ParserStatus {
                       SILValue Arg;
                       SourceLoc ArgLoc;
                       if (parseTypedValueRef(Arg, ArgLoc, B))
