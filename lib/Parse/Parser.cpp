@@ -939,9 +939,8 @@ Parser::parseList(tok RightK, SourceLoc LeftLoc, SourceLoc &RightLoc,
   };
 
   auto IsConditionalsEnd = [&]() -> bool {
-    return Tok.is(tok::pound_else) ||
-      Tok.is(tok::pound_elseif) ||
-      Tok.is(tok::pound_endif);
+    return Elements && (Tok.is(tok::pound_elseif) ||
+      Tok.is(tok::pound_else) || Tok.is(tok::pound_endif));
   };
 
   while (true) {
@@ -973,7 +972,7 @@ Parser::parseList(tok RightK, SourceLoc LeftLoc, SourceLoc &RightLoc,
             IfConfigMap->outerConditionalCompletes(ICD);
         }
       }
-      if (Tok.is(RightK) || (Elements && IsConditionalsEnd()))
+      if (Tok.is(RightK) || IsConditionalsEnd())
         break;
     }
 
