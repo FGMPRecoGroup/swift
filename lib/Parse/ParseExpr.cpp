@@ -3257,7 +3257,7 @@ ParserResult<Expr> Parser::parseExprCollection() {
     auto HasDelayedDecl = State->hasDelayedDecl();
 
     // Skip any initial conditionals.
-    while (Tok.is(tok::pound_if)) {
+    while (Tok.isAny(tok::pound_if, tok::pound_elseif, tok::pound_else)) {
       consumeToken();
       skipUntilTokenOrEndOfLine(tok::unknown);
     }
@@ -3303,8 +3303,6 @@ ParserResult<Expr> Parser::parseExprArray(SourceLoc LSquareLoc) {
 
   SourceLoc RSquareLoc;
   ParserStatus Status;
-  bool First = true;
-  bool HasError = false;
   Status |= parseList(tok::r_square, LSquareLoc, RSquareLoc,
                       /*AllowSepAfterLast=*/true,
                       diag::expected_rsquare_array_expr,
@@ -3321,21 +3319,10 @@ ParserResult<Expr> Parser::parseExprArray(SourceLoc LSquareLoc) {
         Elements->push_back(elt);
     }
 
-    if (First) {
-      if (Tok.isNot(tok::r_square) && Tok.isNot(tok::comma)) {
-        diagnose(Tok, diag::expected_separator, ",").
-          fixItInsertAfter(PreviousLoc, ",");
-        HasError = true;
-      }
-      First = false;
-    }
-
     if (Tok.is(tok::comma) && IsActive)
       CommaLocs.push_back(Tok.getLoc());
     return Element;
   }, &IfConfigMap);
-  if (HasError)
-    Status.setIsParseError();
 
   return makeParserResult(Status, IfConfigMap.closeCollection(
           ArrayExpr::create(Context, LSquareLoc, SubExprs, CommaLocs,

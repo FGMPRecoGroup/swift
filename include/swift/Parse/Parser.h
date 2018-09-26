@@ -715,8 +715,20 @@ public:
   class ConfigMap {
     std::vector <IfConfigDecl *> OuterDecls, *PendingConditionals = &OuterDecls;
     std::map<const void *,std::vector <IfConfigDecl *>> ConditionalsMap;
-    bool hasConditionals = false;
+    bool HasConditionals = false, First = true;
+;
   public:
+
+    bool isFirst() {
+      if (!First)
+        return false;
+      First = false;
+      return true;
+    }
+
+    void resetFirst() {
+      First = true;
+    }
 
     Expr *registerActiveDataElement(Expr *expr) {
       if (PendingConditionals == &OuterDecls) {
@@ -727,7 +739,7 @@ public:
     }
 
     void newOuterConditionalStarts() {
-      hasConditionals = true;
+      HasConditionals = true;
       if (PendingConditionals != &OuterDecls)
         (PendingConditionals = &OuterDecls)->clear();
     }
@@ -737,7 +749,7 @@ public:
     }
 
     CollectionExpr *closeCollection(CollectionExpr *expr) {
-      if (hasConditionals) {
+      if (HasConditionals) {
         if (PendingConditionals == &OuterDecls && OuterDecls.size())
           registerActiveDataElement(expr);
         expr->ConditionalsMap = ConditionalsMap;
