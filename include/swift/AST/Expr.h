@@ -2069,6 +2069,9 @@ class CollectionExpr : public Expr {
 
   Expr *SemanticExpr = nullptr;
 
+  /// Populated by Parser::ConfigMap to represent conditionals in collections.
+  std::map<const void *,std::vector <IfConfigDecl *>> ConditionalsMap;
+
   /// Retrieve the intrusive pointer storage from the subtype
   Expr *const *getTrailingObjectsPointer() const;
   Expr **getTrailingObjectsPointer() {
@@ -2100,8 +2103,6 @@ protected:
   }
 
 public:
-  /// Populated by Parser::ConfigMap to represent conditionals in collections.
-  std::map<const void *,std::vector <IfConfigDecl *>> ConditionalsMap;
 
   /// Retrieve the elements stored in the collection.
   ArrayRef<Expr *> getElements() const {
@@ -2113,6 +2114,10 @@ public:
   Expr *getElement(unsigned i) const { return getElements()[i]; }
   void setElement(unsigned i, Expr *E) { getElements()[i] = E; }
   unsigned getNumElements() const { return Bits.CollectionExpr.NumSubExprs; }
+
+  std::map<const void *,std::vector <IfConfigDecl *>> &getConditionalsMapRef() {
+    return ConditionalsMap;
+  }
 
   /// Retrieve the comma source locations stored in the collection. Please note
   /// that trailing commas are currently allowed, and that invalid code may have
