@@ -29,7 +29,6 @@
 #include "swift/Basic/InlineBitfield.h"
 #include "llvm/Support/TrailingObjects.h"
 #include <utility>
-#include <map>
 
 namespace llvm {
   struct fltSemantics;
@@ -2070,7 +2069,7 @@ class CollectionExpr : public Expr {
   Expr *SemanticExpr = nullptr;
 
   /// Populated by Parser::ConfigMap to represent conditionals in collections.
-  std::map<unsigned, std::vector <IfConfigDecl *>> ConditionalsMap;
+  MutableArrayRef<std::pair<unsigned, IfConfigDecl *>> ConditionalsMap;
 
   /// Retrieve the intrusive pointer storage from the subtype
   Expr *const *getTrailingObjectsPointer() const;
@@ -2103,6 +2102,7 @@ protected:
   }
 
 public:
+  typedef std::pair<unsigned, IfConfigDecl *> ConditionalsMapPair;
 
   /// Retrieve the elements stored in the collection.
   ArrayRef<Expr *> getElements() const {
@@ -2115,11 +2115,11 @@ public:
   void setElement(unsigned i, Expr *E) { getElements()[i] = E; }
   unsigned getNumElements() const { return Bits.CollectionExpr.NumSubExprs; }
 
-  const std::map<unsigned, std::vector <IfConfigDecl *>> &getConditionalsMap() {
+  const ArrayRef<ConditionalsMapPair> &getConditionalsMap() const {
     return ConditionalsMap;
   }
-  void setConditionalsMap(std::map<unsigned, std::vector <IfConfigDecl *>> &M) {
-    ConditionalsMap = M;
+  void setConditionalsMap(const MutableArrayRef<ConditionalsMapPair> Map) {
+    ConditionalsMap = Map;
   }
 
   /// Retrieve the comma source locations stored in the collection. Please note
