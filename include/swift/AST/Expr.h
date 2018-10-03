@@ -2069,7 +2069,7 @@ class CollectionExpr : public Expr {
   Expr *SemanticExpr = nullptr;
 
   /// Populated by Parser::ConfigMap to represent conditionals in collections.
-  MutableArrayRef<std::pair<unsigned, IfConfigDecl *>> ConditionalsMap;
+  ArrayRef<std::pair<unsigned, IfConfigDecl *>> ConditionalsMap;
 
   /// Retrieve the intrusive pointer storage from the subtype
   Expr *const *getTrailingObjectsPointer() const;
@@ -2115,10 +2115,11 @@ public:
   void setElement(unsigned i, Expr *E) { getElements()[i] = E; }
   unsigned getNumElements() const { return Bits.CollectionExpr.NumSubExprs; }
 
+  /// Represents #conditionals in collections.
   const ArrayRef<ConditionalsMapPair> &getConditionalsMap() const {
     return ConditionalsMap;
   }
-  void setConditionalsMap(const MutableArrayRef<ConditionalsMapPair> Map) {
+  void setConditionalsMap(ArrayRef<ConditionalsMapPair> Map) {
     ConditionalsMap = Map;
   }
 
