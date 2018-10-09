@@ -20,6 +20,7 @@
 #include "swift/AST/Identifier.h"
 #include "swift/Basic/LangOptions.h"
 #include "swift/Basic/SourceManager.h"
+#include "swift/Basic/Unicode.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/MathExtras.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -1786,40 +1787,6 @@ void Lexer::lexStringLiteral(unsigned CustomDelimiterLen) {
     if (CharValue == ~0U) {
       ++CurPtr;
 
-      if (*TokStart == '\'') {
-        // Complain about single-quote string and suggest replacement with
-        // double-quoted equivalent.
-        StringRef orig(TokStart, CurPtr - TokStart);
-        llvm::SmallString<32> replacement;
-        replacement += '"';
-        std::string str = orig.slice(1, orig.size() - 1).str();
-        std::string quot = "\"";
-        size_t pos = 0;
-        while (pos != str.length()) {
-          if (str.at(pos) == '\\') {
-            if (str.at(pos + 1) == '\'') {
-                // Un-escape escaped single quotes.
-                str.replace(pos, 2, "'");
-                ++pos;
-            } else {
-                // Skip over escaped characters.
-                pos += 2;
-            }
-          } else if (str.at(pos) == '"') {
-            str.replace(pos, 1, "\\\"");
-            // Advance past the newly added ["\""].
-            pos += 2;
-          } else {
-            ++pos;
-          }
-        }
-        replacement += StringRef(str);
-        replacement += '"';
-        diagnose(TokStart, diag::lex_single_quote_string)
-          .fixItReplaceChars(getSourceLoc(TokStart), getSourceLoc(CurPtr),
-                             replacement);
-      }
-
       // Is this the end of multiline/custom-delimited string literal?
       if ((!IsMultilineString || advanceIfMultilineDelimiter(CurPtr, Diags)) &&
           delimiterMatches(CustomDelimiterLen, CurPtr, Diags, true)) {
@@ -2428,9 +2395,14 @@ void Lexer::lexImpl() {
       
   case '\'': {
     const char *TokStart = CurPtr-1;
-    uint32_t CodePoint = lexCharacterLiteral(CurPtr);
-    return formToken(CodePoint == ~0U ? tok::unknown :
-                     tok::integer_literal, TokStart);
+    if (lexCodepointLiteral(CurPtr, TokStart) != ~0U)
+      return formToken(tok::integer_literal, TokStart);
+    CurPtr = TokStart + 1;
+    lexStringLiteral();
+    StringRef Text = NextToken.getText().drop_front().drop_back();
+    if (!swift::unicode::isSingleExtendedGraphemeCluster(Text))
+      diagnose(TokStart, diag::lex_character_not_cluster);
+    return;
   }
 
   case '`':
@@ -2438,10 +2410,12 @@ void Lexer::lexImpl() {
   }
 }
 
-uint32_t Lexer::lexCharacterLiteral(const char *&CurPtr) {
+uint32_t Lexer::lexCodepointLiteral(const char *&CurPtr, const char *TokStart) {
   uint32_t CodePoint = ~0;
-  if (*CurPtr == '\'')
-    diagnose(CurPtr, diag::lex_character_empty);
+  if (*CurPtr == '\'') {
+    if (TokStart)
+      diagnose(CurPtr, diag::lex_character_empty);
+  }
   else if (*CurPtr == '\\') {
     switch (*++CurPtr) {
       case 't': CodePoint = '\t'; break;
@@ -2449,19 +2423,25 @@ uint32_t Lexer::lexCharacterLiteral(const char *&CurPtr) {
       case 'n': CodePoint = '\n'; break;
       case '\\': CodePoint = '\\'; break;
       case '\'': ++CurPtr; CodePoint = '\''; break;
+      case 'u':
+        ++CurPtr;
+        CodePoint = lexUnicodeEscape(CurPtr, Diags ? this : nullptr);
+        break;
       default:
-        diagnose(CurPtr, diag::lex_character_invalid_escape);
+        if (TokStart)
+          diagnose(CurPtr, diag::lex_character_invalid_escape);
     }
   }
   else {
     CodePoint = swift::validateUTF8CharacterAndAdvance(CurPtr, BufferEnd);
 
-    if (CodePoint == ~0U)
-      diagnose(CurPtr, diag::lex_invalid_utf8);
+    if (CodePoint == ~0U && TokStart)
+      diagnose(TokStart, diag::lex_invalid_utf8);
   }
 
   if (CodePoint != ~0U && *CurPtr != '\'') {
-    diagnose(CurPtr, diag::lex_character_not_codepoint);
+//    if (TokStart)
+//      diagnose(TokStart, diag::lex_character_not_codepoint);
     CodePoint = ~0U;
   }
 

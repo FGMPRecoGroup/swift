@@ -712,6 +712,7 @@
         "Hashable",
         "Equatable",
         "_HasCustomAnyHashableRepresentation",
+        "ExpressibleByCodepointLiteral",
         "CustomReflectable",
         "_CustomPlaygroundQuickLookable",
         "MirrorPath",

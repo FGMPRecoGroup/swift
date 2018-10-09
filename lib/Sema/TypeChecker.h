@@ -653,6 +653,7 @@ private:
   Type BooleanLiteralType;
   Type UnicodeScalarType;
   Type ExtendedGraphemeClusterType;
+  Type CodepointLiteralType;
   Type StringLiteralType;
   Type ArrayLiteralType;
   Type DictionaryLiteralType;

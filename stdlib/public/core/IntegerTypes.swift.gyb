@@ -1694,6 +1694,12 @@ extension ${Self} : _HasCustomAnyHashableRepresentation {
   }
 }
 
+extension ${Self}: ExpressibleByCodepointLiteral {
+  public init(codepointLiteral value: IntegerLiteralType) {
+    self.init(${Self}(value))
+  }
+}
+
 % for src_type in all_integer_types(word_bits):
 %   srcBits = src_type.bits
 %   srcSigned = src_type.is_signed

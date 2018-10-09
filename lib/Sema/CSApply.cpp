@@ -1835,8 +1835,10 @@ namespace {
         return expr;
 
       auto &tc = cs.getTypeChecker();
+      bool IsCodepoint = static_cast<IntegerLiteralExpr *>(expr)->isCodepoint();
       ProtocolDecl *protocol
-        = tc.getProtocol(expr->getLoc(),
+        = tc.getProtocol(expr->getLoc(), IsCodepoint ?
+                         KnownProtocolKind::ExpressibleByCodepointLiteral :
                          KnownProtocolKind::ExpressibleByIntegerLiteral);
       ProtocolDecl *builtinProtocol
         = tc.getProtocol(expr->getLoc(),
@@ -1859,7 +1861,8 @@ namespace {
       }
 
       DeclName initName(tc.Context, DeclBaseName::createConstructor(),
-                        { tc.Context.Id_integerLiteral });
+                        { IsCodepoint ? tc.Context.Id_codepointLiteral :
+                          tc.Context.Id_integerLiteral });
       DeclName builtinInitName(tc.Context, DeclBaseName::createConstructor(),
                                { tc.Context.Id_builtinIntegerLiteral });
 

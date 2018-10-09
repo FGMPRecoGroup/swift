@@ -1157,3 +1157,9 @@ extension String : CustomStringConvertible {
     return self
   }
 }
+
+extension String : ExpressibleByCodepointLiteral {
+  public init(codepointLiteral value: IntegerLiteralType) {
+    self.init(Unicode.Scalar(_value: UInt32(value)))
+  }
+}
